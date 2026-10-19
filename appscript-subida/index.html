@@ -39,6 +39,78 @@
   <button id="subir" disabled>Subir</button>
   <div id="estado"></div>
 
+  <h2 style="font-size:1rem;margin-top:32px">Ubicación del navegador</h2>
+  <p><small>Prueba si el navegador puede pedir la ubicación desde esta página. No se guarda ni se envía a la planilla.</small></p>
+  <button id="ubicar">Probar ubicación</button>
+  <div id="ubicacion"></div>
+  <button id="verMapa" hidden>Ver en mapa</button>
+  <p id="avisoMapa" hidden><small>Al abrir el mapa, las coordenadas se envían a OpenStreetMap para cargarlo.</small></p>
+  <iframe id="mapa" hidden style="width:100%;height:320px;border:1px solid #ddd;margin-top:8px"></iframe>
+
+  <script>
+    // Prueba de navigator.geolocation: en Apps Script la página corre dentro
+    // de un iframe de Google, que puede bloquear el permiso sin preguntar.
+    const botonUbicar = document.getElementById('ubicar');
+    const ubicacion = document.getElementById('ubicacion');
+    const ERRORES_UBICACION = {
+      1: 'denegada (por la persona, el navegador o el iframe)',
+      2: 'no disponible (sin señal o servicios de ubicación apagados)',
+      3: 'tiempo agotado',
+    };
+
+    const botonMapa = document.getElementById('verMapa');
+    const avisoMapa = document.getElementById('avisoMapa');
+    const mapa = document.getElementById('mapa');
+    let ultimaPosicion = null;
+
+    // Solo al pulsar: el mapa de OpenStreetMap recibe las coordenadas
+    botonMapa.addEventListener('click', () => {
+      const { latitude: lat, longitude: lon } = ultimaPosicion;
+      const margen = 0.004;
+      const caja = [lon - margen, lat - margen, lon + margen, lat + margen].join(',');
+      mapa.src = `https://www.openstreetmap.org/export/embed.html?bbox=${caja}&layer=mapnik&marker=${lat},${lon}`;
+      mapa.hidden = false;
+    });
+
+    botonUbicar.addEventListener('click', () => {
+      const lineas = [];
+      ultimaPosicion = null;
+      botonMapa.hidden = true;
+      avisoMapa.hidden = true;
+      mapa.hidden = true;
+      mapa.removeAttribute('src');
+      const politica = document.featurePolicy || document.permissionsPolicy;
+      if (politica && politica.allowsFeature) {
+        lineas.push(`iframe permite geolocalización: ${politica.allowsFeature('geolocation') ? 'sí' : 'no'}`);
+      }
+      lineas.push(`contexto seguro (https): ${window.isSecureContext ? 'sí' : 'no'}`);
+      if (!('geolocation' in navigator)) {
+        lineas.push('<span class="no">este navegador no tiene geolocalización</span>');
+        ubicacion.innerHTML = lineas.join('<br>');
+        return;
+      }
+      lineas.push('pidiendo ubicación…');
+      ubicacion.innerHTML = lineas.join('<br>');
+      const inicio = Date.now();
+      navigator.geolocation.getCurrentPosition(
+        posicion => {
+          ultimaPosicion = posicion.coords;
+          botonMapa.hidden = false;
+          avisoMapa.hidden = false;
+          lineas.pop();
+          lineas.push(`<span class="si">ubicación: sí</span>, precisión ±${Math.round(posicion.coords.accuracy)} m, ${((Date.now() - inicio) / 1000).toFixed(1)} s`);
+          ubicacion.innerHTML = lineas.join('<br>');
+        },
+        error => {
+          lineas.pop();
+          lineas.push(`<span class="no">ubicación: ${ERRORES_UBICACION[error.code] || error.message}</span>`);
+          ubicacion.innerHTML = lineas.join('<br>');
+        },
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+      );
+    });
+  </script>
+
   <script>
     const input = document.getElementById('fotos');
     const tabla = document.getElementById('tabla');
